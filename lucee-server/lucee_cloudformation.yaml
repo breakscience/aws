@@ -1,75 +1,34 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: CloudFormation template to deploy Lucee Server on EC2, Amazon RDS SQL Server with VPC, subnets, S3, IAM roles, Security Groups, and CloudWatch monitoring.
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Deploy Lucee server on EKS, RDS SQL Server, S3 bucket, and associated security groups and roles"
 
 Parameters:
-  InstanceType:
-    Description: EC2 instance type
-    Type: String
-    Default: t3.medium
-    AllowedValues:
-      - t2.micro
-      - t3.medium
-      - t3.large
-    ConstraintDescription: must be a valid EC2 instance type.
-  
-  KeyName:
-    Description: Name of an existing EC2 KeyPair to enable SSH access
-    Type: AWS::EC2::KeyPair::KeyName
-    ConstraintDescription: must be the name of an existing EC2 KeyPair.
-  
   DBUsername:
-    Description: The SQL Server database admin account username
+    Description: "Username for RDS SQL Server"
     Type: String
-    MinLength: 1
-    MaxLength: 16
-    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
-    ConstraintDescription: Must begin with a letter and contain only alphanumeric characters.
-  
   DBPassword:
-    Description: The SQL Server database admin account password
+    Description: "Password for RDS SQL Server"
     Type: String
     NoEcho: true
-    MinLength: 8
-    MaxLength: 41
-    AllowedPattern: '[a-zA-Z0-9]*'
-    ConstraintDescription: Must contain only alphanumeric characters.
+  VPCName:
+    Description: "Name of the VPC"
+    Type: String
+    Default: "lucee-vpc"
+  ClusterName:
+    Description: "EKS Cluster name"
+    Type: String
+    Default: "lucee-cluster"
 
 Resources:
-
   # VPC
   VPC:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: 10.0.0.0/16
+      CidrBlock: "10.0.0.0/16"
       EnableDnsSupport: true
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: LuceeVPC
-
-  # Subnet 1 (us-west-2a)
-  Subnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.1.0/24
-      AvailabilityZone: us-west-2a
-      MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: PublicSubnet1
-
-  # Subnet 2 (us-west-2b)
-  Subnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.2.0/24
-      AvailabilityZone: us-west-2b
-      MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: PublicSubnet2
+          Value: !Ref VPCName
 
   # Internet Gateway
   InternetGateway:
@@ -81,40 +40,68 @@ Resources:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
 
-  # Route Table
-  RouteTable:
-    Type: AWS::EC2::RouteTable
+  # Subnets for EKS and RDS
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
+      CidrBlock: "10.0.1.0/24"
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: "us-west-2a"
       Tags:
         - Key: Name
-          Value: PublicRouteTable
+          Value: PublicSubnet1
 
-  Route:
-    Type: AWS::EC2::Route
-    DependsOn: AttachGateway
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
     Properties:
-      RouteTableId: !Ref RouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+      CidrBlock: "10.0.2.0/24"
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: "us-west-2b"
+      Tags:
+        - Key: Name
+          Value: PublicSubnet2
 
-  Subnet1RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
     Properties:
-      SubnetId: !Ref Subnet1
-      RouteTableId: !Ref RouteTable
+      DBSubnetGroupDescription: "Subnet group for RDS SQL Server"
+      SubnetIds:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
 
-  Subnet2RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
+  # EKS Cluster
+  EKSCluster:
+    Type: AWS::EKS::Cluster
     Properties:
-      SubnetId: !Ref Subnet2
-      RouteTableId: !Ref RouteTable
+      Name: !Ref ClusterName
+      ResourcesVpcConfig:
+        SubnetIds:
+          - !Ref PublicSubnet1
+          - !Ref PublicSubnet2
+        SecurityGroupIds:
+          - !Ref EKSSecurityGroup
 
-  # Security Group for EC2 Instance
-  EC2SecurityGroup:
+  # EKS Node Group (Worker Nodes)
+  EKSNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref EKSCluster
+      NodeRole: !Ref EKSNodeRole
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      ScalingConfig:
+        MinSize: 1
+        MaxSize: 3
+        DesiredSize: 2
+
+  # Security Groups
+  EKSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Enable HTTP and HTTPS traffic
+      GroupDescription: "Allow HTTP, HTTPS, and SSH"
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -125,136 +112,148 @@ Resources:
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: Name
-          Value: EC2SecurityGroup
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
 
-  # IAM Role for EC2 Instance
-  EC2InstanceRole:
+  # IAM Role for EKS Worker Nodes
+  EKSNodeRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: EC2AccessPolicy
+        - PolicyName: EKSNodePolicy
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
-                  - s3:PutObject
+                  - ec2:Describe*
                   - s3:GetObject
+                  - rds:Describe*
                 Resource: "*"
 
-  # Instance Profile for EC2 Role
-  EC2InstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      Roles:
-        - !Ref EC2InstanceRole
-
-  # EC2 Instance
-  EC2Instance:
-    Type: AWS::EC2::Instance
-    Properties:
-      InstanceType: !Ref InstanceType
-      KeyName: !Ref KeyName
-      SecurityGroupIds:
-        - !Ref EC2SecurityGroup
-      SubnetId: !Ref Subnet1
-      IamInstanceProfile: !Ref EC2InstanceProfile
-      ImageId: ami-004a0173a724e2261 # Example Amazon Linux 2 AMI
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          yum update -y
-          yum install -y httpd
-          yum install -y lucee
-          systemctl start httpd
-          systemctl enable httpd
-          echo 'Hello World' > /var/www/html/index.cfm
-
-  # S3 Bucket
-  S3Bucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: lucee-file-storage
-
-  # RDS SQL Server Instance (DBName removed)
+  # RDS SQL Server Instance
   RDSInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceClass: db.t3.medium
-      Engine: sqlserver-ex
-      AllocatedStorage: 20
+      DBInstanceClass: db.m5.large
+      Engine: sqlserver-se
       MasterUsername: !Ref DBUsername
       MasterUserPassword: !Ref DBPassword
-      VPCSecurityGroups:
-        - !Ref RDSDBSecurityGroup
+      AllocatedStorage: 100
       DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref EKSSecurityGroup
+      MultiAZ: true
+      BackupRetentionPeriod: 7
 
-  # RDS Subnet Group (covering two Availability Zones)
-  DBSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: Subnets for RDS DB
-      SubnetIds:
-        - !Ref Subnet1
-        - !Ref Subnet2
+  # S3 Bucket
+  LuceeS3Bucket:
+    Type: AWS::S3::Bucket
 
-  # Security Group for RDS
-  RDSDBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+  # Kubernetes manifest as a Custom Resource
+  EKSManifest:
+    Type: AWS::CloudFormation::CustomResource
     Properties:
-      GroupDescription: Allow access to RDS instance
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 1433
-          ToPort: 1433
-          CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: Name
-          Value: RDSSecurityGroup
+      ServiceToken: !GetAtt EKSKubernetesFunction.Arn
+      Manifest:
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: lucee-server
+        spec:
+          replicas: 2
+          selector:
+            matchLabels:
+              app: lucee
+          template:
+            metadata:
+              labels:
+                app: lucee
+            spec:
+              containers:
+              - name: lucee
+                image: lucee/lucee:latest
+                ports:
+                - containerPort: 8080
 
-  # CloudWatch Detailed Monitoring for EC2
-  EC2InstanceCWAlarm:
-    Type: AWS::CloudWatch::Alarm
+  # Kubernetes Service for LoadBalancer
+  EKSService:
+    Type: AWS::CloudFormation::CustomResource
     Properties:
-      AlarmDescription: EC2 instance CPU usage
-      Namespace: AWS/EC2
-      MetricName: CPUUtilization
-      Dimensions:
-        - Name: InstanceId
-          Value: !Ref EC2Instance
-      Statistic: Average
-      Period: 60
-      EvaluationPeriods: 1
-      Threshold: 70
-      ComparisonOperator: GreaterThanThreshold
+      ServiceToken: !GetAtt EKSKubernetesFunction.Arn
+      Manifest:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: lucee-service
+        spec:
+          type: LoadBalancer
+          ports:
+          - port: 80
+            targetPort: 8080
+          selector:
+            app: lucee
 
-  # CloudWatch Detailed Monitoring for RDS
-  RDSInstanceCWAlarm:
-    Type: AWS::CloudWatch::Alarm
+  # Lambda function to apply Kubernetes manifests
+  EKSKubernetesFunction:
+    Type: AWS::Lambda::Function
     Properties:
-      AlarmDescription: RDS CPU usage
-      Namespace: AWS/RDS
-      MetricName: CPUUtilization
-      Dimensions:
-        - Name: DBInstanceIdentifier
-          Value: !Ref RDSInstance
-      Statistic: Average
-      Period: 60
-      EvaluationPeriods: 1
-      Threshold: 70
-      ComparisonOperator: GreaterThanThreshold
+      Handler: index.handler
+      Role: !GetAtt MyLambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import base64
+          import urllib.request
+
+          def handler(event, context):
+              print("Apply Kubernetes Manifest")
+              # Add code to interact with Kubernetes
+      Runtime: python3.8
+      Timeout: 60
+
+  MyLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaKubernetesPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: eks:Describe*
+                Resource: "*"
 
 Outputs:
-  EC2InstancePublicIP:
-    Description: Public IP address of the EC2 instance
-    Value: !GetAtt EC2Instance.PublicIp
+  EKSClusterName:
+    Description: "EKS Cluster Name"
+    Value: !Ref EKSCluster
+
+  RDSInstanceEndpoint:
+    Description: "RDS SQL Server endpoint"
+    Value: !GetAtt RDSInstance.Endpoint.Address
+
+  S3BucketName:
+    Description: "S3 Bucket Name"
+    Value: !Ref LuceeS3Bucket
+
+  LuceeServiceURL:
+    Description: "Lucee Server URL"
+    Value: !GetAtt EKSService.Status.LoadBalancer.Ingress[0].Hostname
