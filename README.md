@@ -5,7 +5,7 @@ This CloudFormation template provisions an Amazon EKS (Elastic Kubernetes Servic
 Features
 
 	• 	Amazon EKS Cluster: Deploys an EKS cluster and worker nodes to run the Lucee server in a Kubernetes environment.
- 	• 	Amazon RDS (SQL Server): Provisions a highly available RDS SQL Server instance with Multi-AZ for backend storage.
+ 	•	Amazon RDS (SQL Server): Provisions a highly available RDS SQL Server instance with Multi-AZ for backend storage.
   	• 	Amazon S3 Bucket: Creates an S3 bucket to store the index.cfm file, which is mounted to Lucee as its home directory.
    	• 	Security Groups: Configures security groups to allow communication between EKS worker nodes, the EKS control plane, and the RDS instance.
     	• 	IAM Roles and Policies: Provides necessary IAM roles for the EKS cluster, worker nodes, and Lambda functions.
@@ -57,7 +57,7 @@ Deployment Instructions
 
 Clone the GitHub repository to your local machine or download the CloudFormation template file (cloudformation.yaml):
 
-git clone https://github.com/your-repo-name/lucee-eks-rds-s3.git
+git clone https://github.com/breakscience/lucee-eks-rds-s3.git
 
 Navigate to the project directory:
 
