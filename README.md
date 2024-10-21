@@ -4,12 +4,12 @@ This CloudFormation template provisions an Amazon EKS (Elastic Kubernetes Servic
 
 Features
 
-	• Amazon EKS Cluster: Deploys an EKS cluster and worker nodes to run the Lucee server in a Kubernetes environment.
- 	• Amazon RDS (SQL Server): Provisions a highly available RDS SQL Server instance with Multi-AZ for backend storage.
-  	• Amazon S3 Bucket: Creates an S3 bucket to store the index.cfm file, which is mounted to Lucee as its home directory.
-   	• Security Groups: Configures security groups to allow communication between EKS worker nodes, the EKS control plane, and the RDS instance.
-    	• IAM Roles and Policies: Provides necessary IAM roles for the EKS cluster, worker nodes, and Lambda functions.
-     	• Automated S3 Deployment: Uses a Lambda function to upload an index.cfm file to the S3 bucket during stack creation.
+	• 	Amazon EKS Cluster: Deploys an EKS cluster and worker nodes to run the Lucee server in a Kubernetes environment.
+ 	• 	Amazon RDS (SQL Server): Provisions a highly available RDS SQL Server instance with Multi-AZ for backend storage.
+  	• 	Amazon S3 Bucket: Creates an S3 bucket to store the index.cfm file, which is mounted to Lucee as its home directory.
+   	• 	Security Groups: Configures security groups to allow communication between EKS worker nodes, the EKS control plane, and the RDS instance.
+    	• 	IAM Roles and Policies: Provides necessary IAM roles for the EKS cluster, worker nodes, and Lambda functions.
+     	• 	Automated S3 Deployment: Uses a Lambda function to upload an index.cfm file to the S3 bucket during stack creation.
 
 Prerequisites
 
@@ -19,11 +19,11 @@ Before deploying this CloudFormation template, you need to ensure that the follo
 
 You will need access to an AWS account with the following services enabled:
 
-	• Amazon EKS
-	• Amazon RDS
-	• Amazon S3
-	• AWS CloudFormation
-	• Amazon EC2
+	•	Amazon EKS
+	•	Amazon RDS
+	•	Amazon S3
+	•	AWS CloudFormation
+	•	Amazon EC2
 
 2. AWS CLI or AWS Management Console
 
@@ -40,12 +40,12 @@ You will need an existing EC2 Key Pair to SSH into the EKS worker nodes (if need
 
 Ensure that the user or role deploying the CloudFormation stack has the following permissions:
 
-	• cloudformation:CreateStack
-	• ec2:* (for VPC, subnets, security groups, and EC2 instances)
-	• eks:* (for EKS cluster and node group creation)
-	• rds:* (for provisioning the RDS instance)
-	• s3:* (for creating the S3 bucket and uploading files)
-	• lambda:* (for creating Lambda functions)
+	• 	cloudformation:CreateStack
+	• 	ec2:* (for VPC, subnets, security groups, and EC2 instances)
+	• 	eks:* (for EKS cluster and node group creation)
+	• 	rds:* (for provisioning the RDS instance)
+	• 	s3:* (for creating the S3 bucket and uploading files)
+	• 	lambda:* (for creating Lambda functions)
 
 5. Supported AWS Region
 
@@ -67,10 +67,10 @@ cd lucee-eks-rds-s3
 
 The CloudFormation template comes with parameters for customization, including:
 
-	• DBUsername: Username for the RDS SQL Server.
-	• DBPassword: Password for the RDS SQL Server (use a secure password).
-	• VPCName: Name of the VPC.
-	• ClusterName: Name of the EKS Cluster.
+	• 	DBUsername: Username for the RDS SQL Server.
+	•	DBPassword: Password for the RDS SQL Server (use a secure password).
+	• 	VPCName: Name of the VPC.
+	• 	ClusterName: Name of the EKS Cluster.
 
 You can modify these parameters directly in the cloudformation.yaml file or pass them as parameters during deployment.
 
@@ -93,25 +93,25 @@ aws cloudformation create-stack \
                ParameterKey=DBPassword,ParameterValue=your-password \
   --capabilities CAPABILITY_NAMED_IAM
 
-	• Replace your-username and your-password with your desired RDS SQL Server credentials.
-	• The stack may take several minutes to create.
+	• 	Replace your-username and your-password with your desired RDS SQL Server credentials.
+	• 	The stack may take several minutes to create.
 
 AWS Management Console Deployment
 
-	1. Go to the CloudFormation Console.
-	2. Click Create Stack and upload the cloudformation.yaml file.
-	3. Enter the stack parameters, such as DBUsername, DBPassword, and other values.
-	4. Click Next and proceed with the default options.
-	5. Review the stack and click Create Stack.
-	6. Wait for the stack to be created. You can monitor progress from the Events tab in the CloudFormation console.
+	1. 	Go to the CloudFormation Console.
+	2. 	Click Create Stack and upload the cloudformation.yaml file.
+	3. 	Enter the stack parameters, such as DBUsername, DBPassword, and other values.
+	4. 	Click Next and proceed with the default options.
+	5. 	Review the stack and click Create Stack.
+	6. 	Wait for the stack to be created. You can monitor progress from the Events tab in the CloudFormation console.
 
 4. Post-Deployment
 
 Once the stack is deployed, you can retrieve the following outputs from the CloudFormation console or AWS CLI:
 
-	• LuceeServiceURL: The URL to access the Lucee server running on EKS.
-	• RDSInstanceEndpoint: The endpoint of the RDS SQL Server.
-	• S3BucketName: The name of the S3 bucket where index.cfm is stored.
+	• 	LuceeServiceURL: The URL to access the Lucee server running on EKS.
+	• 	RDSInstanceEndpoint: The endpoint of the RDS SQL Server.
+	• 	S3BucketName: The name of the S3 bucket where index.cfm is stored.
 
 5. Accessing the Lucee Server
 
@@ -131,8 +131,8 @@ Cleanup
 
 To delete the stack and all associated resources:
 
-	1. Go to the CloudFormation Console or use the AWS CLI.
-	2. Select the stack and click Delete.
+	1.	Go to the CloudFormation Console or use the AWS CLI.
+	2.	Select the stack and click Delete.
 
 Alternatively, using the AWS CLI:
 
@@ -144,10 +144,10 @@ Troubleshooting
 
 If the stack fails to create or the instances fail to join the Kubernetes cluster:
 
-	1. Check CloudWatch Logs for Lambda functions and EC2 worker nodes.
-	2. Ensure the subnets are public and have Internet access via the Internet Gateway.
-	3. Verify IAM roles are properly assigned to the EKS cluster and worker nodes.
-	4. Verify Security Group rules to ensure proper communication between the EKS control plane, worker nodes, and RDS.
+	1.	Check CloudWatch Logs for Lambda functions and EC2 worker nodes.
+	2.	Ensure the subnets are public and have Internet access via the Internet Gateway.
+	3.	Verify IAM roles are properly assigned to the EKS cluster and worker nodes.
+	4.	Verify Security Group rules to ensure proper communication between the EKS control plane, worker nodes, and RDS.
 
 Contributing
 
