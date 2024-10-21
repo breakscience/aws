@@ -186,8 +186,8 @@ Resources:
         MinSize: 1
         MaxSize: 3
         DesiredSize: 2
-      #RemoteAccess:
-      #  Ec2SshKey: "your-ec2-key" # Make sure to replace this with your actual EC2 key pair name
+      RemoteAccess:
+        Ec2SshKey: "your-ec2-key" # Make sure to replace this with your actual EC2 key pair name
       InstanceTypes: ["t3.medium"]
       AmiType: AL2_x86_64
 
@@ -235,12 +235,25 @@ Resources:
       Role: !GetAtt MyLambdaExecutionRole.Arn
       Code:
         ZipFile: |
+          import json
           import boto3
+          import cfnresponse
+
           def handler(event, context):
-              s3 = boto3.client('s3')
-              bucket = event['bucket']
-              s3.put_object(Bucket=bucket, Key='index.cfm', Body='Hello World')
-              return {'statusCode': 200, 'body': 'File uploaded successfully'}
+              try:
+                  print("Received event: " + json.dumps(event, indent=2))
+
+                  bucket_name = event['ResourceProperties']['bucket']
+                  s3 = boto3.client('s3')
+                  response = s3.put_object(Bucket=bucket_name, Key='index.cfm', Body='Hello World')
+
+                  # Send success response back to CloudFormation
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {"Message": "File uploaded successfully"})
+              
+              except Exception as e:
+                  print(f"Error uploading file: {e}")
+                  # Send failure response back to CloudFormation
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {"Message": str(e)})
       Runtime: python3.8
       Timeout: 60
 
@@ -282,13 +295,50 @@ Resources:
         ZipFile: |
           import json
           import boto3
-          import urllib.request
+          import time
+          import cfnresponse
+          from kubernetes import client, config
 
           def handler(event, context):
-              print("Apply Kubernetes Manifest")
-              # Add code to interact with Kubernetes (e.g., deploy Lucee)
+              try:
+                  print("Received event: " + json.dumps(event, indent=2))
+                  manifest = event['ResourceProperties']['Manifest']
+                  service_name = manifest['metadata']['name']
+                  namespace = manifest.get('metadata', {}).get('namespace', 'default')
+
+                  # Load Kubernetes configuration
+                  config.load_kube_config()
+
+                  v1 = client.CoreV1Api()
+
+                  if event['RequestType'] == 'Create':
+                      print(f"Applying Kubernetes Service: {service_name}")
+
+                      # Wait for the LoadBalancer to be provisioned
+                      for i in range(0, 30):  # Retry for ~5 minutes
+                          time.sleep(10)
+                          print(f"Checking LoadBalancer status... attempt {i+1}")
+                          service = v1.read_namespaced_service(service_name, namespace)
+                          if service.status.load_balancer.ingress:
+                              lb_hostname = service.status.load_balancer.ingress[0].hostname
+                              print(f"LoadBalancer hostname: {lb_hostname}")
+                              cfnresponse.send(event, context, cfnresponse.SUCCESS, {"Hostname": lb_hostname})
+                              return
+                      
+                      # If we reach here, the LoadBalancer didn't get a hostname in time
+                      raise Exception("LoadBalancer hostname not available after 5 minutes")
+
+                  elif event['RequestType'] == 'Delete':
+                      print(f"Deleting Kubernetes Service: {service_name}")
+                      v1.delete_namespaced_service(service_name, namespace)
+                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {"Message": "Service deleted"})
+
+              except Exception as e:
+                  print(f"Error managing Kubernetes Service: {e}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {"Message": str(e)})
+
       Runtime: python3.8
-      Timeout: 60
+      Timeout: 300  # Increased timeout to allow for waiting on the LoadBalancer
 
   # Kubernetes deployment manifest as a Custom Resource for Lucee server
   EKSManifest:
