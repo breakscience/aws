@@ -93,7 +93,7 @@ The stack may take several minutes to create.
 ### AWS Management Console Deployment
 
 	1.	Go to the CloudFormation Console.
-	2.	Click Create Stack and upload the cloudformation.yaml file.
+	2.	Click Create Stack and upload the ilovelucee.yaml file.
 	3.	Enter the stack parameters, such as DBUsername, DBPassword, and other values.
 	4.	Click Next and proceed with the default options.
 	5.	Review the stack and click Create Stack.
